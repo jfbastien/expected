@@ -28,76 +28,35 @@
 #ifndef Expected_h
 #define Expected_h
 
+#include <type_traits>
+#include <utility>
+
 namespace WTF {
 
 template <class E>
 class unexpected_type {
 public:
     unexpected_type() = delete;
-    constexpr explicit unexpected_type(const E&);
-    constexpr explicit unexpected_type(E&&);
-    constexpr const E& value() const;
-    constexpr E& value();
+    constexpr explicit unexpected_type(const E& e) : val(e) { }
+    constexpr explicit unexpected_type(E&& e) : val(std::move(e)) { }
+    constexpr const E& value() const { return val; }
+    constexpr E& value() { return val; }
 
 private:
     E val;
 };
 
-template <class E> constexpr bool operator==(const unexpected_type<E>&, const unexpected_type<E>&);
-template <class E> constexpr bool operator!=(const unexpected_type<E>&, const unexpected_type<E>&);
-template <class E> constexpr bool operator<(const unexpected_type<E>&, const unexpected_type<E>&);
-template <class E> constexpr bool operator>(const unexpected_type<E>&, const unexpected_type<E>&);
-template <class E> constexpr bool operator<=(const unexpected_type<E>&, const unexpected_type<E>&);
-template <class E> constexpr bool operator>=(const unexpected_type<E>&, const unexpected_type<E>&);
+template <class E> constexpr bool operator==(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs == rhs; }
+template <class E> constexpr bool operator!=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs != rhs; }
+template <class E> constexpr bool operator<(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs < rhs; }
+template <class E> constexpr bool operator>(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs > rhs; }
+template <class E> constexpr bool operator<=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs <= rhs; }
+template <class E> constexpr bool operator>=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs >= rhs; }
 
-template <class E> constexpr unexpected_type<decay_t<E>> make_unexpected(E&& v);
+template <class E> constexpr unexpected_type<std::decay_t<E>> make_unexpected(E&& v) { return unexpected_type<typename std::decay<E>::type>(std::forward<E>(v)); }
 
 struct unexpect_t { unexpect_t() = delete; };
 constexpr unexpect_t unexpect { };
-
-template <class T, class E> constexpr bool operator==(const expected<T, E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator!=(const expected<T, E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator<(const expected<T, E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator>(const expected<T, E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator<=(const expected<T, E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator>=(const expected<T, E>&, const expected<T, E>&);
-
-template <class T, class E> constexpr bool operator==(const expected<T, E>&, const T&);
-template <class T, class E> constexpr bool operator==(const T&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator!=(const expected<T, E>&, const T&);
-template <class T, class E> constexpr bool operator!=(const T&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator<(const expected<T, E>&, const T&);
-template <class T, class E> constexpr bool operator<(const T&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator<=(const expected<T, E>&, const T&);
-template <class T, class E> constexpr bool operator<=(const T&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator>(const expected<T, E>&, const T&);
-template <class T, class E> constexpr bool operator>(const T&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator>=(const expected<T, E>&, const T&);
-template <class T, class E> constexpr bool operator>=(const T&, const expected<T, E>&);
-
-template <class T, class E> constexpr bool operator==(const expected<T, E>&, const unexpected_type<E>&);
-template <class T, class E> constexpr bool operator==(const unexpected_type<E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator!=(const expected<T, E>&, const unexpected_type<E>&);
-template <class T, class E> constexpr bool operator!=(const unexpected_type<E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator<(const expected<T, E>&, const unexpected_type<E>&);
-template <class T, class E> constexpr bool operator<(const unexpected_type<E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator<=(const expected<T, E>&, const unexpected_type<E>&);
-template <class T, class E> constexpr bool operator<=(const unexpected_type<E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator>(const expected<T, E>&, const unexpected_type<E>&);
-template <class T, class E> constexpr bool operator>(const unexpected_type<E>&, const expected<T, E>&);
-template <class T, class E> constexpr bool operator>=(const expected<T, E>&, const unexpected_type<E>&);
-template <class T, class E> constexpr bool operator>=(const unexpected_type<E>&, const expected<T, E>&);
-
-void swap(expected<T, E>&, expected<T, E>&);
-
-template <class T> constexpr expected<decay_t<T>> make_expected(T&& v);
-expected<void> make_expected();
-template <class T, class E> constexpr expected<T, decay_t<E>> make_expected_from_error(E&& e);
-template <class T, class E, class U> constexpr expected<T, E> make_expected_from_error(U&& u);
-template <class F> constexpr expected<typename result_type<F>::type> make_expected_from_call(F f);
-
-template <class T, class E> struct hash<expected<T, E>>;
-template <class E> struct hash<expected<void, E>>;
 
 template <class T, class E>
 class expected {
@@ -157,6 +116,50 @@ private:
         error_type err;
     };
 };
+
+template <class T, class E> constexpr bool operator==(const expected<T, E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator!=(const expected<T, E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator<(const expected<T, E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator>(const expected<T, E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator<=(const expected<T, E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator>=(const expected<T, E>&, const expected<T, E>&);
+
+template <class T, class E> constexpr bool operator==(const expected<T, E>&, const T&);
+template <class T, class E> constexpr bool operator==(const T&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator!=(const expected<T, E>&, const T&);
+template <class T, class E> constexpr bool operator!=(const T&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator<(const expected<T, E>&, const T&);
+template <class T, class E> constexpr bool operator<(const T&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator<=(const expected<T, E>&, const T&);
+template <class T, class E> constexpr bool operator<=(const T&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator>(const expected<T, E>&, const T&);
+template <class T, class E> constexpr bool operator>(const T&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator>=(const expected<T, E>&, const T&);
+template <class T, class E> constexpr bool operator>=(const T&, const expected<T, E>&);
+
+template <class T, class E> constexpr bool operator==(const expected<T, E>&, const unexpected_type<E>&);
+template <class T, class E> constexpr bool operator==(const unexpected_type<E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator!=(const expected<T, E>&, const unexpected_type<E>&);
+template <class T, class E> constexpr bool operator!=(const unexpected_type<E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator<(const expected<T, E>&, const unexpected_type<E>&);
+template <class T, class E> constexpr bool operator<(const unexpected_type<E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator<=(const expected<T, E>&, const unexpected_type<E>&);
+template <class T, class E> constexpr bool operator<=(const unexpected_type<E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator>(const expected<T, E>&, const unexpected_type<E>&);
+template <class T, class E> constexpr bool operator>(const unexpected_type<E>&, const expected<T, E>&);
+template <class T, class E> constexpr bool operator>=(const expected<T, E>&, const unexpected_type<E>&);
+template <class T, class E> constexpr bool operator>=(const unexpected_type<E>&, const expected<T, E>&);
+
+void swap(expected<T, E>&, expected<T, E>&);
+
+template <class T> constexpr expected<std::decay_t<T>> make_expected(T&& v);
+expected<void> make_expected();
+template <class T, class E> constexpr expected<T, std::decay_t<E>> make_expected_from_error(E&& e);
+template <class T, class E, class U> constexpr expected<T, E> make_expected_from_error(U&& u);
+template <class F> constexpr expected<typename result_type<F>::type> make_expected_from_call(F f);
+
+template <class T, class E> struct hash<expected<T, E>>;
+template <class E> struct hash<expected<void, E>>;
 
 template <class E>
 class expected<void, E> {
