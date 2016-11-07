@@ -28,10 +28,19 @@
 #ifndef Expected_h
 #define Expected_h
 
+#include <functional>
+#include <initializer_list>
 #include <type_traits>
 #include <utility>
 
 namespace WTF {
+
+// Part of <optional>, used in <expected>.
+struct nullopt_t {
+    constexpr nullopt_t(int) { }
+};
+constexpr nullopt_t nullopt{ 42 };
+
 
 template <class E>
 class unexpected_type {
@@ -46,12 +55,12 @@ private:
     E val;
 };
 
-template <class E> constexpr bool operator==(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs == rhs; }
-template <class E> constexpr bool operator!=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs != rhs; }
-template <class E> constexpr bool operator<(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs < rhs; }
-template <class E> constexpr bool operator>(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs > rhs; }
-template <class E> constexpr bool operator<=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs <= rhs; }
-template <class E> constexpr bool operator>=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs >= rhs; }
+template <class E> constexpr bool operator==(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs.value() == rhs.value(); }
+template <class E> constexpr bool operator!=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs.value() != rhs.value(); }
+template <class E> constexpr bool operator<(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs.value() < rhs.value(); }
+template <class E> constexpr bool operator>(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs.value() > rhs.value(); }
+template <class E> constexpr bool operator<=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs.value() <= rhs.value(); }
+template <class E> constexpr bool operator>=(const unexpected_type<E>& lhs, const unexpected_type<E>& rhs) { return lhs.value() >= rhs.value(); }
 
 template <class E> constexpr unexpected_type<std::decay_t<E>> make_unexpected(E&& v) { return unexpected_type<typename std::decay<E>::type>(std::forward<E>(v)); }
 
@@ -70,12 +79,12 @@ public:
     expected(expected&&);
     constexpr expected(const T&);
     constexpr expected(T&&);
-    template <class... Args> constexpr explicit expected(in_place_t, Args&&...);
-    template <class U, class... Args> constexpr explicit expected(in_place_t, initializer_list<U>, Args&&...);
+    //template <class... Args> constexpr explicit expected(in_place_t, Args&&...);
+    //template <class U, class... Args> constexpr explicit expected(in_place_t, std::initializer_list<U>, Args&&...);
     constexpr expected(unexpected_type<E> const&);
     template <class Err> constexpr expected(unexpected_type<Err> const&);
     template <class... Args> constexpr explicit expected(unexpect_t, Args&&...);
-    template <class U, class... Args> constexpr explicit expected(unexpect_t, initializer_list<U>, Args&&...);
+    template <class U, class... Args> constexpr explicit expected(unexpect_t, std::initializer_list<U>, Args&&...);
 
     ~expected();
 
@@ -85,7 +94,7 @@ public:
     expected& operator=(const unexpected_type<E>&);
     expected& operator=(unexpected_type<E>&&);
     template <class... Args> void emplace(Args&&...);
-    template <class U, class... Args> void emplace(initializer_list<U>, Args&&...);
+    template <class U, class... Args> void emplace(std::initializer_list<U>, Args&&...);
 
     void swap(expected&);
 
@@ -110,7 +119,7 @@ public:
     template <class U> T value_or(U&&) &&;
 
 private:
-    bool has_value;
+    bool has;
     union {
         value_type val;
         error_type err;
@@ -150,16 +159,13 @@ template <class T, class E> constexpr bool operator>(const unexpected_type<E>&, 
 template <class T, class E> constexpr bool operator>=(const expected<T, E>&, const unexpected_type<E>&);
 template <class T, class E> constexpr bool operator>=(const unexpected_type<E>&, const expected<T, E>&);
 
-void swap(expected<T, E>&, expected<T, E>&);
+template<typename T, typename E> void swap(expected<T, E>&, expected<T, E>&);
 
-template <class T> constexpr expected<std::decay_t<T>> make_expected(T&& v);
-expected<void> make_expected();
+template <class T, class E = WTF::nullopt_t> constexpr expected<std::decay_t<T>, E> make_expected(T&& v);
+expected<void, WTF::nullopt_t> make_expected();
 template <class T, class E> constexpr expected<T, std::decay_t<E>> make_expected_from_error(E&& e);
 template <class T, class E, class U> constexpr expected<T, E> make_expected_from_error(U&& u);
-template <class F> constexpr expected<typename result_type<F>::type> make_expected_from_call(F f);
-
-template <class T, class E> struct hash<expected<T, E>>;
-template <class E> struct hash<expected<void, E>>;
+template <class F, class E = WTF::nullopt_t> constexpr expected<typename std::result_of<F>::type, E> make_expected_from_call(F f);
 
 template <class E>
 class expected<void, E> {
@@ -171,7 +177,7 @@ public:
     constexpr expected();
     expected(const expected&);
     expected(expected&&);
-    constexpr explicit expected(in_place_t);
+    //constexpr explicit expected(in_place_t);
     constexpr expected(unexpected_type<E> const&);
     template <class Err> constexpr expected(unexpected_type<Err> const&);
 
@@ -192,7 +198,7 @@ public:
     constexpr unexpected_type<E> get_unexpected() const;
 
 private:
-    bool has_value;
+    bool has;
     union {
         unsigned char dummy;
         error_type err;
@@ -200,5 +206,29 @@ private:
 };
 
 }
+
+namespace std {
+
+template <class T, class E> struct hash<WTF::expected<T, E>>
+{
+    typedef WTF::expected<T, E> argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(argument_type const& e) const;
+};
+
+template <class E> struct hash<WTF::expected<void, E>>
+{
+    typedef WTF::expected<void, E> argument_type;
+    typedef std::size_t result_type;
+    result_type operator()(argument_type const& e) const;
+};
+
+}
+
+using WTF::nullopt;
+using WTF::unexpected_type;
+using WTF::make_unexpected;
+using WTF::unexpect;
+using WTF::expected;
 
 #endif
