@@ -199,7 +199,7 @@ void test_expected_void()
 {
     typedef expected<void, const char*> E;
     typedef expected<void, const void*> EV;
-    //typedef expected<void, std::string> String;
+    typedef expected<void, std::string> String;
     {
         auto e = E();
         ASSERT_EQ(e.has_value(), true);
@@ -261,7 +261,7 @@ void test_expected_void()
         ASSERT_EQ(e0.error(), foof);
         ASSERT_EQ(e1.error(), oops);
     }
-    {/*
+    {
         const char* message = "very long failure string, for very bad failure cases";
         String e0(make_unexpected<std::string>(message));
         String e1(make_unexpected<std::string>(message));
@@ -274,9 +274,10 @@ void test_expected_void()
         ASSERT_EQ(e0, *e4);
         delete e4;
         ASSERT_EQ(e0, *e5);
-        delete e5;*/
+        delete e5;
     }
 }
+
 void test_comparisons()
 {
     typedef expected<int, const char*> Ex;

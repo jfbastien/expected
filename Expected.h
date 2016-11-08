@@ -106,6 +106,32 @@ union expected_storage {
     ~expected_storage() { }
 };
 
+template <class E>
+union expected_constexpr_storage<void, E> {
+    typedef void value_type;
+    typedef E error_type;
+    char dummy;
+    error_type err;
+    constexpr expected_constexpr_storage() : dummy() { }
+    constexpr expected_constexpr_storage(expected_value_tag_type) : dummy() { }
+    constexpr expected_constexpr_storage(expected_error_tag_type) : err() { }
+    constexpr expected_constexpr_storage(expected_error_tag_type, const error_type& e) : err(e) { }
+    ~expected_constexpr_storage() = default;
+};
+
+template <class E>
+union expected_storage<void, E> {
+    typedef void value_type;
+    typedef E error_type;
+    char dummy;
+    error_type err;
+    constexpr expected_storage() : dummy() { }
+    constexpr expected_storage(expected_value_tag_type) : dummy() { }
+    constexpr expected_storage(expected_error_tag_type) : err() { }
+    constexpr expected_storage(expected_error_tag_type, const error_type& err) : err(err) { }
+    ~expected_storage() { }
+};
+
 template <class T, class E>
 struct expected_constexpr_base {
     typedef T value_type;
@@ -156,9 +182,52 @@ struct expected_base {
     }
 };
 
+template <class E>
+struct expected_constexpr_base<void, E> {
+    typedef void value_type;
+    typedef E error_type;
+    expected_constexpr_storage<value_type, error_type> s;
+    bool has;
+    constexpr expected_constexpr_base() : s(), has(true) { }
+    constexpr expected_constexpr_base(expected_value_tag_type tag) : s(tag), has(true) { }
+    constexpr expected_constexpr_base(expected_error_tag_type tag) : s(tag), has(false) { }
+    constexpr expected_constexpr_base(expected_error_tag_type tag, const error_type& err) : s(tag, err), has(false) { }
+    ~expected_constexpr_base() = default;
+};
+
+template <class E>
+struct expected_base<void, E> {
+    typedef void value_type;
+    typedef E error_type;
+    expected_storage<value_type, error_type> s;
+    bool has;
+    constexpr expected_base() : s(), has(true) { }
+    constexpr expected_base(expected_value_tag_type tag) : s(tag), has(true) { }
+    constexpr expected_base(expected_error_tag_type tag) : s(tag), has(false) { }
+    constexpr expected_base(expected_error_tag_type tag, const error_type& err) : s(tag, err), has(false) { }
+    expected_base(const expected_base& o)
+    : has(o.has)
+    {
+        if (!has)
+            ::new (&s.err) error_type(o.s.err);
+    }
+    expected_base(const expected_base&& o)
+    : has(o.has)
+    {
+        if (!has)
+            ::new (&s.err) error_type(std::move(o.s.err));
+    }
+    ~expected_base()
+    {
+        if (!has)
+            s.err.error_type::~error_type();
+    }
+};
+
 template <class T, class E>
 using expected_base_select = typename std::conditional<
-    std::is_trivially_destructible<T>::value && std::is_trivially_destructible<E>::value,
+    ((std::is_void<T>::value || std::is_trivially_destructible<T>::value)
+     && std::is_trivially_destructible<E>::value),
     expected_constexpr_base<typename std::remove_const<T>::type, typename std::remove_const<E>::type>,
     expected_base<typename std::remove_const<T>::type, typename std::remove_const<E>::type>
 >::type;
@@ -242,18 +311,25 @@ public:
 };
 
 template <class E>
-class expected<void, E> {
+class expected<void, E> : private expected_base_select<void, E> {
+    typedef expected_base_select<void, E> base;
+
 public:
-    typedef void value_type;
-    typedef E error_type;
+    typedef typename base::value_type value_type;
+    typedef typename base::error_type error_type;
+
+private:
+    typedef expected<value_type, error_type> type;
+
+public:
     template <class U> struct rebind { typedef expected<U, error_type> type; };
 
-    constexpr expected() : dummy(), has(true) { }
+    constexpr expected() : base(expected_value_tag) { }
     expected(const expected&) = default;
     expected(expected&&) = default;
     //constexpr explicit expected(in_place_t);
-    constexpr expected(unexpected_type<E> const& u) : err(u.value()), has(false) { }
-    template <class Err> constexpr expected(unexpected_type<Err> const& u) : err(u.value()), has(false) { }
+    constexpr expected(unexpected_type<E> const& u) : base(expected_error_tag, u.value()) { }
+    template <class Err> constexpr expected(unexpected_type<Err> const& u) : base(expected_error_tag, u.value()) { }
 
     ~expected() = default;
 
@@ -265,36 +341,28 @@ public:
 
     void swap(expected& o) {
       using std::swap;
-      if (has && o.has) {
-      } else if (has && !o.has) {
-        error_type e(std::move(o.err));
-        ::new (&err) error_type(e);
-        swap(has, o.has);
-      } else if (!has && o.has) {
-        ::new (&o.err) error_type(std::move(err));
-        swap(has, o.has);
+      if (base::has && o.has) {
+      } else if (base::has && !o.has) {
+        error_type e(std::move(o.s.err));
+        ::new (&base::s.err) error_type(e);
+        swap(base::has, o.has);
+      } else if (!base::has && o.has) {
+        ::new (&o.s.err) error_type(std::move(base::s.err));
+        swap(base::has, o.has);
       } else {
-        swap(err, o.err);
+        swap(base::s.err, o.s.err);
       }
     }
 
-    constexpr explicit operator bool() const { return has; }
-    constexpr bool has_value() const { return has; }
-    void value() const { if (!has) unexpected_fail(); }
-    constexpr const E& error() const & { return !has ? err : (unexpected_fail(), err); }
-    E& error() & { return !has ? err : (unexpected_fail(), err); } // Not in the current paper.
-    constexpr E&& error() && { return !has ? err : (unexpected_fail(), err); }
-    constexpr const E&& error() const && { return !has ? err : (unexpected_fail(), err); }  // Not in the current paper.
+    constexpr explicit operator bool() const { return base::has; }
+    constexpr bool has_value() const { return base::has; }
+    void value() const { if (!base::has) unexpected_fail(); }
+    constexpr const E& error() const & { return !base::has ? base::s.err : (unexpected_fail(), base::s.err); }
+    E& error() & { return !base::has ? base::s.err : (unexpected_fail(), base::s.err); } // Not in the current paper.
+    constexpr E&& error() && { return !base::has ? base::s.err : (unexpected_fail(), base::s.err); }
+    constexpr const E&& error() const && { return !base::has ? base::s.err : (unexpected_fail(), base::s.err); }  // Not in the current paper.
     //constexpr E& error() &;
-    constexpr unexpected_type<E> get_unexpected() const { return unexpected_type<E>(err); }
-
-private:
-    typedef expected<value_type, error_type> type;
-    union {
-        unsigned char dummy;
-        error_type err;
-    };
-    bool has;
+    constexpr unexpected_type<E> get_unexpected() const { return unexpected_type<E>(base::s.err); }
 };
 
 template <class T, class E> constexpr bool operator==(const expected<T, E>& x, const expected<T, E>& y) { return bool(x) == bool(y) && (x ? x.value() == y.value() : x.error() == y.error()); }
