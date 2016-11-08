@@ -413,7 +413,7 @@ template <class T, class E, class U> constexpr expected<T, E> make_expected_from
 
 expected<void, WTF::nullopt_t> make_expected() { return expected<void, WTF::nullopt_t>(); }
 
-}
+} // namespace WTF
 
 namespace std {
 
