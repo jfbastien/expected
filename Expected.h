@@ -257,14 +257,14 @@ template <class T, class E> struct hash<WTF::expected<T, E>>
 {
     typedef WTF::expected<T, E> argument_type;
     typedef std::size_t result_type;
-    result_type operator()(argument_type const& e) const;
+    result_type operator()(argument_type const& e) const { return e ? hash<typename argument_type::value_type>{}(e.value()) : hash<typename argument_type::error_type>{}(e.error()); }
 };
 
 template <class E> struct hash<WTF::expected<void, E>>
 {
     typedef WTF::expected<void, E> argument_type;
     typedef std::size_t result_type;
-    result_type operator()(argument_type const& e) const;
+    result_type operator()(argument_type const& e) const { return e ? 0 : hash<typename argument_type::error_type>{}(e.error()); }
 };
 
 }

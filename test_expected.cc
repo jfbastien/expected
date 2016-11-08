@@ -1,6 +1,7 @@
 #include "Expected.h"
 #include <cstdio>
 #include <string>
+#include <unordered_map>
 
 const char* oops = "oops";
 const char* foof = "foof";
@@ -33,7 +34,8 @@ unsigned errors = 0;
 #define ASSERT_NOT_LE(A, B) ASSERT_NOT(A, B, <=)
 #define ASSERT_NOT_GE(A, B) ASSERT_NOT(A, B, >=)
 
-void test_unexpected_type() {
+void test_unexpected_type()
+{
     {
         auto u = unexpected_type<int>(42);
         ASSERT_EQ(u.value(), 42);
@@ -56,7 +58,8 @@ void test_unexpected_type() {
     }
 }
 
-void test_expected() {
+void test_expected()
+{
     typedef expected<int, const char*> E;
     typedef expected<int, const void*> EV;
     struct foo { foo(int v) : bar(v) {} int bar; };
@@ -152,7 +155,8 @@ void test_expected() {
     // FIXME also test non-trivial value, non-trivial error.
 }
 
-void test_comparisons() {
+void test_comparisons()
+{
     typedef expected<int, const char*> Ex;
     typedef expected<int, int> Er;
 
@@ -254,10 +258,26 @@ void test_comparisons() {
     ASSERT_GE(make_unexpected(oops), Ex(42));
 }
 
-int main() {
+void test_hash()
+{
+    typedef expected<int, const char*> E;
+    std::unordered_map<E, int> m;
+    m.insert({ E(42), 42 });
+    m.insert({ E(make_unexpected(oops)), 5 });
+    m.insert({ E(1024), 1024 });
+    m.insert({ E(make_unexpected(foof)), 0xf00f });
+    ASSERT_EQ(m[E(42)], 42);
+    ASSERT_EQ(m[E(1024)], 1024);
+    ASSERT_EQ(m[E(make_unexpected(oops))], 5);
+    ASSERT_EQ(m[E(make_unexpected(foof))], 0xf00f);
+}
+
+int main()
+{
     test_unexpected_type();
     test_expected();
     test_comparisons();
+    test_hash();
 
     return errors != 0;
 }
