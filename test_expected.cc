@@ -3,14 +3,35 @@
 #include <string>
 
 const char* oops = "oops";
+const char* foof = "foof";
 unsigned errors = 0;
 
-#define ASSERT_EQ(A, B) do {                                \
-      if ((A) != (B)) {                                     \
-          fprintf(stderr, "Failed: %s != %s\n", #A, #B);    \
-          ++errors;                                         \
-      }                                                     \
+#define ASSERT(A, B, CMP) do {                                  \
+    if (!((A) CMP (B))) {                                       \
+      fprintf(stderr, "Failed: !(%s %s %s)\n", #A, #CMP, #B);   \
+      ++errors;                                                 \
+    }                                                           \
   } while (0)
+
+#define ASSERT_NOT(A, B, CMP) do {                              \
+    if ((A) CMP (B)) {                                          \
+      fprintf(stderr, "Failed: %s %s %s\n", #A, #CMP, #B);      \
+      ++errors;                                                 \
+    }                                                           \
+  } while (0)
+
+#define ASSERT_EQ(A, B) ASSERT(A, B, ==)
+#define ASSERT_NE(A, B) ASSERT(A, B, !=)
+#define ASSERT_LT(A, B) ASSERT(A, B, <)
+#define ASSERT_GT(A, B) ASSERT(A, B, >)
+#define ASSERT_LE(A, B) ASSERT(A, B, <=)
+#define ASSERT_GE(A, B) ASSERT(A, B, >=)
+#define ASSERT_NOT_EQ(A, B) ASSERT_NOT(A, B, ==)
+#define ASSERT_NOT_NE(A, B) ASSERT_NOT(A, B, !=)
+#define ASSERT_NOT_LT(A, B) ASSERT_NOT(A, B, <)
+#define ASSERT_NOT_GT(A, B) ASSERT_NOT(A, B, >)
+#define ASSERT_NOT_LE(A, B) ASSERT_NOT(A, B, <=)
+#define ASSERT_NOT_GE(A, B) ASSERT_NOT(A, B, >=)
 
 void test_unexpected_type() {
     {
@@ -19,11 +40,11 @@ void test_unexpected_type() {
         constexpr auto c = make_unexpected(42);
         ASSERT_EQ(c.value(), 42);
         ASSERT_EQ(u, c);
-        ASSERT_EQ(u != c, false);
-        ASSERT_EQ(u < c, false);
-        ASSERT_EQ(u > c, false);
-        ASSERT_EQ(u <= c, true);
-        ASSERT_EQ(u >= c, true);
+        ASSERT_NOT_NE(u, c);
+        ASSERT_NOT_LT(u, c);
+        ASSERT_NOT_GT(u, c);
+        ASSERT_LE(u, c);
+        ASSERT_GE(u, c);
     }
     {
         auto c = make_unexpected(oops);
@@ -95,6 +116,20 @@ void test_expected() {
         ASSERT_EQ(e->bar, 42);
         ASSERT_EQ((*e).bar, 42);
     }
+    {
+        auto e0 = E(42);
+        auto e1 = E(1024);
+        swap(e0, e1);
+        ASSERT_EQ(e0.value(), 1024);
+        ASSERT_EQ(e1.value(), 42);
+    }
+    {
+        auto e0 = E(make_unexpected(oops));
+        auto e1 = E(make_unexpected(foof));
+        swap(e0, e1);
+        ASSERT_EQ(e0.error(), foof);
+        ASSERT_EQ(e1.error(), oops);
+    }
     /*{
       constexpr F c(foo(42));
       ASSERT_EQ(c->bar, 42);
@@ -103,9 +138,112 @@ void test_expected() {
     // FIXME also test non-trivial value, non-trivial error.
 }
 
+void test_comparisons() {
+    typedef expected<int, const char*> Ex;
+    typedef expected<int, int> Er;
+
+    // Two expected, no errors.
+    ASSERT_EQ(Ex(42), Ex(42));
+    ASSERT_NE(Ex(42), Ex(1024));
+    ASSERT_LT(Ex(42), Ex(1024));
+    ASSERT_GT(Ex(1024), Ex(42));
+    ASSERT_LE(Ex(42), Ex(42));
+    ASSERT_GE(Ex(42), Ex(42));
+    ASSERT_LE(Ex(42), Ex(1024));
+    ASSERT_GE(Ex(1024), Ex(42));
+
+    ASSERT_NOT_EQ(Ex(42), Ex(1024));
+    ASSERT_NOT_NE(Ex(42), Ex(42));
+    ASSERT_NOT_LT(Ex(1024), Ex(42));
+    ASSERT_NOT_GT(Ex(42), Ex(1024));
+    ASSERT_NOT_LE(Ex(1024), Ex(42));
+    ASSERT_NOT_GE(Ex(42), Ex(1024));
+
+    // Two expected, half errors.
+    ASSERT_NOT_EQ(Ex(42), Ex(make_unexpected(oops)));
+    ASSERT_NE(Ex(42), Ex(make_unexpected(oops)));
+    ASSERT_LT(Ex(42), Ex(make_unexpected(oops)));
+    ASSERT_NOT_GT(Ex(42), Ex(make_unexpected(oops)));
+    ASSERT_LE(Ex(42), Ex(make_unexpected(oops)));
+    ASSERT_NOT_GE(Ex(42), Ex(make_unexpected(oops)));
+
+    ASSERT_NOT_EQ(Ex(make_unexpected(oops)), Ex(42));
+    ASSERT_NE(Ex(make_unexpected(oops)), Ex(42));
+    ASSERT_NOT_LT(Ex(make_unexpected(oops)), Ex(42));
+    ASSERT_GT(Ex(make_unexpected(oops)), Ex(42));
+    ASSERT_NOT_LE(Ex(make_unexpected(oops)), Ex(42));
+    ASSERT_GE(Ex(make_unexpected(oops)), Ex(42));
+
+    // Two expected, all errors.
+    ASSERT_EQ(Er(42), Er(42));
+    ASSERT_NE(Er(42), Er(1024));
+    ASSERT_LT(Er(42), Er(1024));
+    ASSERT_GT(Er(1024), Er(42));
+    ASSERT_LE(Er(42), Er(42));
+    ASSERT_GE(Er(42), Er(42));
+    ASSERT_LE(Er(42), Er(1024));
+    ASSERT_GE(Er(1024), Er(42));
+
+    ASSERT_NOT_EQ(Er(42), Er(1024));
+    ASSERT_NOT_NE(Er(42), Er(42));
+    ASSERT_NOT_LT(Er(1024), Er(42));
+    ASSERT_NOT_GT(Er(42), Er(1024));
+    ASSERT_NOT_LE(Er(1024), Er(42));
+    ASSERT_NOT_GE(Er(42), Er(1024));
+
+    // One expected, one value.
+    ASSERT_EQ(Ex(42), 42);
+    ASSERT_NE(Ex(42), 0);
+    ASSERT_LT(Ex(42), 1024);
+    ASSERT_GT(Ex(1024), 42);
+    ASSERT_LE(Ex(42), 42);
+    ASSERT_GE(Ex(42), 42);
+    ASSERT_LE(Ex(42), 1024);
+    ASSERT_GE(Ex(1024), 42);
+
+    ASSERT_NOT_EQ(Ex(42), 0);
+    ASSERT_NOT_NE(Ex(42), 42);
+    ASSERT_NOT_LT(Ex(1024), 42);
+    ASSERT_NOT_GT(Ex(42), 1024);
+    ASSERT_NOT_LE(Ex(1024), 42);
+    ASSERT_NOT_GE(Ex(42), 1024);
+
+    ASSERT_EQ(42, Ex(42));
+    ASSERT_NE(42, Ex(1024));
+    ASSERT_LT(42, Ex(1024));
+    ASSERT_GT(1024, Ex(42));
+    ASSERT_LE(42, Ex(42));
+    ASSERT_GE(42, Ex(42));
+    ASSERT_LE(42, Ex(1024));
+    ASSERT_GE(1024, Ex(42));
+
+    ASSERT_NOT_EQ(42, Ex(1024));
+    ASSERT_NOT_NE(42, Ex(42));
+    ASSERT_NOT_LT(1024, Ex(42));
+    ASSERT_NOT_GT(42, Ex(1024));
+    ASSERT_NOT_LE(1024, Ex(42));
+    ASSERT_NOT_GE(42, Ex(1024));
+
+    // One expected, one unexpected.
+    ASSERT_NOT_EQ(Ex(42), make_unexpected(oops));
+    ASSERT_NE(Ex(42), make_unexpected(oops));
+    ASSERT_LT(Ex(42), make_unexpected(oops));
+    ASSERT_NOT_GT(Ex(42), make_unexpected(oops));
+    ASSERT_LE(Ex(42), make_unexpected(oops));
+    ASSERT_NOT_GE(Ex(42), make_unexpected(oops));
+
+    ASSERT_NOT_EQ(make_unexpected(oops), Ex(42));
+    ASSERT_NE(make_unexpected(oops), Ex(42));
+    ASSERT_NOT_LT(make_unexpected(oops), Ex(42));
+    ASSERT_GT(make_unexpected(oops), Ex(42));
+    ASSERT_NOT_LE(make_unexpected(oops), Ex(42));
+    ASSERT_GE(make_unexpected(oops), Ex(42));
+}
+
 int main() {
     test_unexpected_type();
     test_expected();
+    test_comparisons();
 
     return errors != 0;
 }
