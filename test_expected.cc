@@ -63,7 +63,8 @@ void test_expected()
     typedef expected<int, const char*> E;
     typedef expected<int, const void*> EV;
     struct foo { foo(int v) : bar(v) {} int bar; };
-    typedef expected<foo, const char*> F;
+    typedef expected<foo, const char*> FooChar;
+    typedef expected<foo, std::string> FooString;
     {
         auto e = E(42);
         ASSERT_EQ(e.has_value(), true);
@@ -129,7 +130,7 @@ void test_expected()
         ASSERT_EQ(e.value_or(3.14), 3);
     }
     {
-        auto e = F(42);
+        auto e = FooChar(42);
         ASSERT_EQ(e->bar, 42);
         ASSERT_EQ((*e).bar, 42);
     }
@@ -147,12 +148,19 @@ void test_expected()
         ASSERT_EQ(e0.error(), foof);
         ASSERT_EQ(e1.error(), oops);
     }
-    /*{
-      constexpr F c(foo(42));
-      ASSERT_EQ(c->bar, 42);
-      ASSERT_EQ((*c).bar, 42);
-      }*/
-    // FIXME also test non-trivial value, non-trivial error.
+    {
+        FooChar c(foo(42));
+        ASSERT_EQ(c->bar, 42);
+        ASSERT_EQ((*c).bar, 42);
+    }
+    {/*
+        FooString s(foo(42));
+        ASSERT_EQ(s->bar, 42);
+        ASSERT_EQ((*s).bar, 42);
+        const char* message = "very long failure string, for very bad failure cases";
+        FooString e(make_unexpected<std::string>(message));
+        ASSERT_EQ(e.error(), std::string(message));*/
+    }
 }
 
 void test_comparisons()

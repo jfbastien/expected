@@ -78,15 +78,15 @@ public:
     typedef E error_type;
     template <class U> struct rebind { using type = expected<U, error_type>; };
 
-    constexpr expected() : val(), has(true) { }
+    constexpr expected() : s(value_tag), has(true) { }
     expected(const expected&) = default;
     expected(expected&&) = default;
-    constexpr expected(const value_type& e) : val(e), has(true) { }
-    constexpr expected(value_type&& e) : val(std::move(e)), has(true) { }
+    constexpr expected(const value_type& e) : s(value_tag, e), has(true) { }
+    constexpr expected(value_type&& e) : s(value_tag, std::move(e)), has(true) { }
     //template <class... Args> constexpr explicit expected(in_place_t, Args&&...);
     //template <class U, class... Args> constexpr explicit expected(in_place_t, std::initializer_list<U>, Args&&...);
-    constexpr expected(unexpected_type<E> const& u) : err(u.value()), has(false) { }
-    template <class Err> constexpr expected(unexpected_type<Err> const& u) : err(u.value()), has(false) { }
+    constexpr expected(unexpected_type<E> const& u) : s(error_tag, u.value()), has(false) { }
+    template <class Err> constexpr expected(unexpected_type<Err> const& u) : s(error_tag, u.value()), has(false) { }
     //template <class... Args> constexpr explicit expected(unexpect_t, Args&&...);
     //template <class U, class... Args> constexpr explicit expected(unexpect_t, std::initializer_list<U>, Args&&...);
 
@@ -103,48 +103,56 @@ public:
     void swap(expected& o) {
       using std::swap;
       if (has && o.has) {
-        swap(val, o.val);
+        swap(s.val, o.s.val);
       } else if (has && !o.has) {
-        error_type e(std::move(o.err));
-        new (&o.val) value_type(std::move(val));
-        new (&err) error_type(e);
+        error_type e(std::move(o.s.err));
+        new (&o.s.val) value_type(std::move(s.val));
+        new (&s.err) error_type(e);
         swap(has, o.has);
       } else if (!has && o.has) {
-        value_type v(std::move(o.val));
-        new (&o.err) error_type(std::move(err));
-        new (&val) value_type(v);
+        value_type v(std::move(o.s.val));
+        new (&o.s.err) error_type(std::move(s.err));
+        new (&s.val) value_type(v);
         swap(has, o.has);
       } else {
-        swap(err, o.err);
+        swap(s.err, o.s.err);
       }
     }
 
-    constexpr const T* operator->() const { return &val; }
-    T* operator->() { return &val; }
-    constexpr const T& operator*() const & { return val; }
-    T& operator*() & { return val; }
-    constexpr const T&& operator*() const && { return std::move(val); }
-    constexpr T&& operator*() && { return std::move(val); }
+    constexpr const T* operator->() const { return &s.val; }
+    T* operator->() { return &s.val; }
+    constexpr const T& operator*() const & { return s.val; }
+    T& operator*() & { return s.val; }
+    constexpr const T&& operator*() const && { return std::move(s.val); }
+    constexpr T&& operator*() && { return std::move(s.val); }
     constexpr explicit operator bool() const { return has; }
     constexpr bool has_value() const { return has; }
-    constexpr const T& value() const & { return has ? val : (unexpected_fail(), val); }
-    constexpr T& value() & { return has ? val : (unexpected_fail(), val); }
-    constexpr const T&& value() const && { return has ? val : (unexpected_fail(), val); }
-    constexpr T&& value() && { return has ? val : (unexpected_fail(), val); }
-    constexpr const E& error() const & { return !has ? err : (unexpected_fail(), err); }
-    E& error() & { return !has ? err : (unexpected_fail(), err); }
-    constexpr E&& error() && { return !has ? err : (unexpected_fail(), err); }
-    constexpr const E&& error() const && { return !has ? err : (unexpected_fail(), err); }
-    constexpr unexpected_type<E> get_unexpected() const { return unexpected_type<E>(err); }
+    constexpr const T& value() const & { return has ? s.val : (unexpected_fail(), s.val); }
+    constexpr T& value() & { return has ? s.val : (unexpected_fail(), s.val); }
+    constexpr const T&& value() const && { return has ? s.val : (unexpected_fail(), s.val); }
+    constexpr T&& value() && { return has ? s.val : (unexpected_fail(), s.val); }
+    constexpr const E& error() const & { return !has ? s.err : (unexpected_fail(), s.err); }
+    E& error() & { return !has ? s.err : (unexpected_fail(), s.err); }
+    constexpr E&& error() && { return !has ? s.err : (unexpected_fail(), s.err); }
+    constexpr const E&& error() const && { return !has ? s.err : (unexpected_fail(), s.err); }
+    constexpr unexpected_type<E> get_unexpected() const { return unexpected_type<E>(s.err); }
     template <class U> constexpr T value_or(U&& u) const & { return has ? **this : static_cast<value_type>(std::forward<U>(u)); }
     template <class U> T value_or(U&& u) && { return has ? std::move(**this) : static_cast<value_type>(std::forward<U>(u)); }
 
 private:
     typedef expected<value_type, error_type> type;
-    union {
+    static constexpr enum class value_tag_type { } value_tag{ };
+    static constexpr enum class error_tag_type { } error_tag{ };
+    union storage {
+        char dummy;
         value_type val;
         error_type err;
-    };
+        constexpr storage() : dummy() { }
+        constexpr storage(value_tag_type) : val() { }
+        constexpr storage(error_tag_type) : err() { }
+        constexpr storage(value_tag_type, const value_type& v) : val(v) { }
+        constexpr storage(error_tag_type, const error_type& e) : err(e) { }
+    } s;
     bool has;
 };
 
@@ -257,14 +265,14 @@ template <class T, class E> struct hash<WTF::expected<T, E>>
 {
     typedef WTF::expected<T, E> argument_type;
     typedef std::size_t result_type;
-    result_type operator()(argument_type const& e) const { return e ? hash<typename argument_type::value_type>{}(e.value()) : hash<typename argument_type::error_type>{}(e.error()); }
+    result_type operator()(argument_type const& e) const { return e ? hash<typename argument_type::value_type>{ }(e.value()) : hash<typename argument_type::error_type>{ }(e.error()); }
 };
 
 template <class E> struct hash<WTF::expected<void, E>>
 {
     typedef WTF::expected<void, E> argument_type;
     typedef std::size_t result_type;
-    result_type operator()(argument_type const& e) const { return e ? 0 : hash<typename argument_type::error_type>{}(e.error()); }
+    result_type operator()(argument_type const& e) const { return e ? 0 : hash<typename argument_type::error_type>{ }(e.error()); }
 };
 
 }
