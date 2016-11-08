@@ -28,6 +28,7 @@
 #ifndef Expected_h
 #define Expected_h
 
+#include <cstdlib>
 #include <functional>
 #include <initializer_list>
 #include <type_traits>
@@ -74,56 +75,75 @@ public:
     typedef E error_type;
     template <class U> struct rebind { using type = expected<U, error_type>; };
 
-    constexpr expected();
-    expected(const expected&);
-    expected(expected&&);
-    constexpr expected(const T&);
-    constexpr expected(T&&);
+    constexpr expected() : val(), has(true) { }
+    expected(const expected&) = default;
+    expected(expected&&) = default;
+    constexpr expected(const value_type& e) : val(e), has(true) { }
+    constexpr expected(value_type&& e) : val(std::move(e)), has(true) { }
     //template <class... Args> constexpr explicit expected(in_place_t, Args&&...);
     //template <class U, class... Args> constexpr explicit expected(in_place_t, std::initializer_list<U>, Args&&...);
-    constexpr expected(unexpected_type<E> const&);
-    template <class Err> constexpr expected(unexpected_type<Err> const&);
-    template <class... Args> constexpr explicit expected(unexpect_t, Args&&...);
-    template <class U, class... Args> constexpr explicit expected(unexpect_t, std::initializer_list<U>, Args&&...);
+    constexpr expected(unexpected_type<E> const& u) : err(u.value()), has(false) { }
+    template <class Err> constexpr expected(unexpected_type<Err> const& u) : err(u.value()), has(false) { }
+    //template <class... Args> constexpr explicit expected(unexpect_t, Args&&...);
+    //template <class U, class... Args> constexpr explicit expected(unexpect_t, std::initializer_list<U>, Args&&...);
 
-    ~expected();
+    ~expected() = default;
 
-    expected& operator=(const expected&);
-    expected& operator=(expected&&);
-    template <class U> expected& operator=(U&&);
-    expected& operator=(const unexpected_type<E>&);
-    expected& operator=(unexpected_type<E>&&);
-    template <class... Args> void emplace(Args&&...);
-    template <class U, class... Args> void emplace(std::initializer_list<U>, Args&&...);
+    expected& operator=(const expected& e) { type(e).swap(*this); return *this; }
+    expected& operator=(expected&& e) { type(std::move(e)).swap(*this); return *this; }
+    template <class U> expected& operator=(U&& u) { type(std::move(u)).swap(*this); return *this; }
+    expected& operator=(const unexpected_type<E>& u) { type(u).swap(*this); return *this; }
+    expected& operator=(unexpected_type<E>&& u) { type(std::move(u)).swap(*this); return *this; }
+    //template <class... Args> void emplace(Args&&...);
+    //template <class U, class... Args> void emplace(std::initializer_list<U>, Args&&...);
 
-    void swap(expected&);
+    void swap(expected& o) {
+      using std::swap;
+      if (has && o.has) {
+        swap(val, o.val);
+      } else if (has && !o.has) {
+        error_type e(std::move(o.err));
+        new (&o.val) value_type(std::move(val));
+        new (&err) error_type(e);
+        swap(has, o.has);
+      } else if (!has && o.has) {
+        value_type v(std::move(o.val));
+        new (&o.err) error_type(std::move(err));
+        new (&val) value_type(v);
+        swap(has, o.has);
+      } else {
+        swap(err, o.err);
+      }
+    }
 
-    constexpr const T* operator->() const;
-    T* operator->();
-    constexpr const T& operator*() const &;
-    T& operator*() &;
-    constexpr const T&& operator*() const &&;
-    constexpr T&& operator*() &&;
-    constexpr explicit operator bool() const;
-    constexpr bool has_value() const;
-    constexpr const T& value() const &;
-    constexpr T& value() &;
-    constexpr const T&& value() const &&;
-    constexpr T&& value() &&;
-    constexpr const E& error() const &;
-    E& error() &;
-    constexpr E&& error() &&;
-    constexpr const E&& error() const &&;
-    constexpr unexpected_type<E> get_unexpected() const;
-    template <class U> constexpr T value_or(U&&) const &;
-    template <class U> T value_or(U&&) &&;
+    constexpr const T* operator->() const { return &val; }
+    T* operator->() { return &val; }
+    constexpr const T& operator*() const & { return val; }
+    T& operator*() & { return val; }
+    constexpr const T&& operator*() const && { return std::move(val); }
+    constexpr T&& operator*() && { return std::move(val); }
+    constexpr explicit operator bool() const { return has; }
+    constexpr bool has_value() const { return has; }
+    constexpr const T& value() const & { return has ? val : (fail(), val); }
+    constexpr T& value() & { return has ? val : (fail(), val); }
+    constexpr const T&& value() const && { return has ? val : (fail(), val); }
+    constexpr T&& value() && { return has ? val : (fail(), val); }
+    constexpr const E& error() const & { return !has ? err : (fail(), err); }
+    E& error() & { return !has ? err : (fail(), err); }
+    constexpr E&& error() && { return !has ? err : (fail(), err); }
+    constexpr const E&& error() const && { return !has ? err : (fail(), err); }
+    constexpr unexpected_type<E> get_unexpected() const { return unexpected_type<E>(err); }
+    template <class U> constexpr T value_or(U&& u) const & { return has ? **this : static_cast<value_type>(std::forward<U>(u)); }
+    template <class U> T value_or(U&& u) && { return has ? std::move(**this) : static_cast<value_type>(std::forward<U>(u)); }
 
 private:
-    bool has;
+    typedef expected<value_type, error_type> type;
+    void fail() const { abort(); } // The specification expects to throw. This implementation doesn't support exceptions.
     union {
         value_type val;
         error_type err;
     };
+    bool has;
 };
 
 template <class T, class E> constexpr bool operator==(const expected<T, E>&, const expected<T, E>&);
