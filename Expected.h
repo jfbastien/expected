@@ -185,10 +185,9 @@ template <class T, class E = WTF::nullopt_t> constexpr expected<std::decay_t<T>,
 {
     return expected<typename std::decay<T>::type, E>(std::forward<T>(v));
 }
-expected<void, WTF::nullopt_t> make_expected();
-template <class T, class E> constexpr expected<T, std::decay_t<E>> make_expected_from_error(E&& e);
-template <class T, class E, class U> constexpr expected<T, E> make_expected_from_error(U&& u);
-template <class F, class E = WTF::nullopt_t> constexpr expected<typename std::result_of<F>::type, E> make_expected_from_call(F f);
+template <class T, class E> constexpr expected<T, std::decay_t<E>> make_expected_from_error(E&& e) { return expected<T, std::decay_t<E>>(make_unexpected(e)); }
+template <class T, class E, class U> constexpr expected<T, E> make_expected_from_error(U&& u) { return expected<T, E>(make_unexpected(E{std::forward<U>(u)})); }
+//template <class F, class E = WTF::nullopt_t> constexpr expected<typename std::result_of<F>::type, E> make_expected_from_call(F f);
 
 template <class E>
 class expected<void, E> {
@@ -228,6 +227,8 @@ private:
     };
 };
 
+expected<void, WTF::nullopt_t> make_expected();
+
 }
 
 namespace std {
@@ -254,5 +255,6 @@ using WTF::make_unexpected;
 using WTF::unexpect;
 using WTF::expected;
 using WTF::make_expected;
+using WTF::make_expected_from_error;
 
 #endif

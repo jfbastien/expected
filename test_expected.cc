@@ -112,6 +112,20 @@ void test_expected() {
         ASSERT_EQ(e.value_or(3.14), 3);
     }
     {
+        auto e = make_expected_from_error<int, const char*>(oops);
+        ASSERT_EQ(e.has_value(), false);
+        ASSERT_EQ(e.error(), oops);
+        ASSERT_EQ(e.get_unexpected().value(), oops);
+        ASSERT_EQ(e.value_or(3.14), 3);
+    }
+    {
+        auto e = make_expected_from_error<int, const void*>(oops);
+        ASSERT_EQ(e.has_value(), false);
+        ASSERT_EQ(e.error(), oops);
+        ASSERT_EQ(e.get_unexpected().value(), oops);
+        ASSERT_EQ(e.value_or(3.14), 3);
+    }
+    {
         auto e = F(42);
         ASSERT_EQ(e->bar, 42);
         ASSERT_EQ((*e).bar, 42);
