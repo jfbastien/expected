@@ -57,5 +57,5 @@ add_compile_flag("-std=c++1z")
 
 # Build / test ################################################################
 
-add_executable(test_expected "test_expected.cc")
-add_test(test_expected test_expected)
+add_executable(test_Expected "Expected.cpp")
+add_test(test_Expected test_Expected)
