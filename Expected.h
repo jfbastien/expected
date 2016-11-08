@@ -36,6 +36,9 @@
 
 namespace WTF {
 
+// The specification expects to throw. This implementation doesn't support exceptions.
+void unexpected_fail() { abort(); }
+
 // Part of <optional>, used in <expected>.
 struct nullopt_t {
     constexpr nullopt_t(int) { }
@@ -124,21 +127,20 @@ public:
     constexpr T&& operator*() && { return std::move(val); }
     constexpr explicit operator bool() const { return has; }
     constexpr bool has_value() const { return has; }
-    constexpr const T& value() const & { return has ? val : (fail(), val); }
-    constexpr T& value() & { return has ? val : (fail(), val); }
-    constexpr const T&& value() const && { return has ? val : (fail(), val); }
-    constexpr T&& value() && { return has ? val : (fail(), val); }
-    constexpr const E& error() const & { return !has ? err : (fail(), err); }
-    E& error() & { return !has ? err : (fail(), err); }
-    constexpr E&& error() && { return !has ? err : (fail(), err); }
-    constexpr const E&& error() const && { return !has ? err : (fail(), err); }
+    constexpr const T& value() const & { return has ? val : (unexpected_fail(), val); }
+    constexpr T& value() & { return has ? val : (unexpected_fail(), val); }
+    constexpr const T&& value() const && { return has ? val : (unexpected_fail(), val); }
+    constexpr T&& value() && { return has ? val : (unexpected_fail(), val); }
+    constexpr const E& error() const & { return !has ? err : (unexpected_fail(), err); }
+    E& error() & { return !has ? err : (unexpected_fail(), err); }
+    constexpr E&& error() && { return !has ? err : (unexpected_fail(), err); }
+    constexpr const E&& error() const && { return !has ? err : (unexpected_fail(), err); }
     constexpr unexpected_type<E> get_unexpected() const { return unexpected_type<E>(err); }
     template <class U> constexpr T value_or(U&& u) const & { return has ? **this : static_cast<value_type>(std::forward<U>(u)); }
     template <class U> T value_or(U&& u) && { return has ? std::move(**this) : static_cast<value_type>(std::forward<U>(u)); }
 
 private:
     typedef expected<value_type, error_type> type;
-    void fail() const { abort(); } // The specification expects to throw. This implementation doesn't support exceptions.
     union {
         value_type val;
         error_type err;
@@ -196,38 +198,56 @@ public:
     typedef E error_type;
     template <class U> struct rebind { typedef expected<U, error_type> type; };
 
-    constexpr expected();
-    expected(const expected&);
-    expected(expected&&);
+    constexpr expected() : has(true) { }
+    expected(const expected&) = default;
+    expected(expected&&) = default;
     //constexpr explicit expected(in_place_t);
-    constexpr expected(unexpected_type<E> const&);
-    template <class Err> constexpr expected(unexpected_type<Err> const&);
+    constexpr expected(unexpected_type<E> const& u) : err(u.value()), has(false) { }
+    template <class Err> constexpr expected(unexpected_type<Err> const& u) : err(u.value()), has(false) { }
 
-    ~expected();
+    ~expected() = default;
 
-    expected& operator=(const expected&);
-    expected& operator=(expected&&);
-    void emplace();
+    expected& operator=(const expected& e) { type(e).swap(*this); return *this; }
+    expected& operator=(expected&& e) { type(std::move(e)).swap(*this); return *this; }
+    expected& operator=(const unexpected_type<E>& u) { type(u).swap(*this); return *this; } // Not in the current paper.
+    expected& operator=(unexpected_type<E>&& u) { type(std::move(u)).swap(*this); return *this; } // Not in the current paper.
+    //void emplace();
 
-    void swap(expected&);
+    void swap(expected& o) {
+      using std::swap;
+      if (has && o.has) {
+      } else if (has && !o.has) {
+        error_type e(std::move(o.err));
+        new (&err) error_type(e);
+        swap(has, o.has);
+      } else if (!has && o.has) {
+        new (&o.err) error_type(std::move(err));
+        swap(has, o.has);
+      } else {
+        swap(err, o.err);
+      }
+    }
 
-    constexpr explicit operator bool() const;
-    constexpr bool has_value() const;
-    void value() const;
-    constexpr const E& error() const &;
-    constexpr E& error() &;
-    constexpr E&& error() &&;
-    constexpr unexpected_type<E> get_unexpected() const;
+    constexpr explicit operator bool() const { return has; }
+    constexpr bool has_value() const { return has; }
+    void value() const { if (!has) unexpected_fail(); }
+    constexpr const E& error() const & { return !has ? err : (unexpected_fail(), err); }
+    E& error() & { return !has ? err : (unexpected_fail(), err); } // Not in the current paper.
+    constexpr E&& error() && { return !has ? err : (unexpected_fail(), err); }
+    constexpr const E&& error() const && { return !has ? err : (unexpected_fail(), err); }  // Not in the current paper.
+    //constexpr E& error() &;
+    constexpr unexpected_type<E> get_unexpected() const { return unexpected_type<E>(err); }
 
 private:
-    bool has;
+    typedef expected<value_type, error_type> type;
     union {
         unsigned char dummy;
         error_type err;
     };
+    bool has;
 };
 
-expected<void, WTF::nullopt_t> make_expected();
+expected<void, WTF::nullopt_t> make_expected() { return expected<void, WTF::nullopt_t>(); }
 
 }
 
