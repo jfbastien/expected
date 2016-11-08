@@ -76,6 +76,18 @@ void test_expected()
     typedef expected<foo, const char*> FooChar;
     typedef expected<foo, std::string> FooString;
     {
+        auto e = E();
+        ASSERT_EQ(e.has_value(), true);
+        ASSERT_EQ(e.value(), 0);
+        ASSERT_EQ(e.value_or(3.14), 0);
+    }
+    {
+        constexpr E e;
+        ASSERT_EQ(e.has_value(), true);
+        ASSERT_EQ(e.value(), 0);
+        ASSERT_EQ(e.value_or(3.14), 0);
+    }
+    {
         auto e = E(42);
         ASSERT_EQ(e.has_value(), true);
         ASSERT_EQ(e.value(), 42);
@@ -183,6 +195,88 @@ void test_expected()
     }
 }
 
+void test_expected_void()
+{
+    typedef expected<void, const char*> E;
+    typedef expected<void, const void*> EV;
+    //typedef expected<void, std::string> String;
+    {
+        auto e = E();
+        ASSERT_EQ(e.has_value(), true);
+        const auto e2(e);
+        ASSERT_EQ(e2.has_value(), true);
+        ASSERT_EQ(e, e2);
+        E e3;
+        e3 = e2;
+        ASSERT_EQ(e3.has_value(), true);
+        ASSERT_EQ(e, e3);
+    }
+    {
+        constexpr E c;
+        ASSERT_EQ(c.has_value(), true);
+        constexpr const auto c2(c);
+        ASSERT_EQ(c2.has_value(), true);
+        ASSERT_EQ(c, c2);
+    }
+    {
+        auto u = E(make_unexpected(oops));
+        ASSERT_EQ(u.has_value(), false);
+        ASSERT_EQ(u.error(), oops);
+        ASSERT_EQ(u.get_unexpected().value(), oops);
+    }
+    {
+        auto uv = EV(make_unexpected(oops));
+        ASSERT_EQ(uv.has_value(), false);
+        ASSERT_EQ(uv.error(), oops);
+        ASSERT_EQ(uv.get_unexpected().value(), oops);
+    }
+    {
+        E e = make_unexpected(oops);
+        ASSERT_EQ(e.has_value(), false);
+        ASSERT_EQ(e.error(), oops);
+        ASSERT_EQ(e.get_unexpected().value(), oops);
+    }
+    {
+        auto e = make_expected_from_error<void, const char*>(oops);
+        ASSERT_EQ(e.has_value(), false);
+        ASSERT_EQ(e.error(), oops);
+        ASSERT_EQ(e.get_unexpected().value(), oops);
+    }
+    {
+        auto e = make_expected_from_error<void, const void*>(oops);
+        ASSERT_EQ(e.has_value(), false);
+        ASSERT_EQ(e.error(), oops);
+        ASSERT_EQ(e.get_unexpected().value(), oops);
+    }
+    {
+        auto e0 = E();
+        auto e1 = E();
+        swap(e0, e1);
+        ASSERT_EQ(e0, e1);
+    }
+    {
+        auto e0 = E(make_unexpected(oops));
+        auto e1 = E(make_unexpected(foof));
+        swap(e0, e1);
+        ASSERT_EQ(e0.error(), foof);
+        ASSERT_EQ(e1.error(), oops);
+    }
+    {/*
+        const char* message = "very long failure string, for very bad failure cases";
+        String e0(make_unexpected<std::string>(message));
+        String e1(make_unexpected<std::string>(message));
+        String e2(make_unexpected<std::string>(std::string()));
+        ASSERT_EQ(e0.error(), std::string(message));
+        ASSERT_EQ(e0, e1);
+        ASSERT_NE(e0, e2);
+        String* e4 = new String(make_unexpected<std::string>(message));
+        String* e5 = new String(*e4);
+        ASSERT_EQ(e0, *e4);
+        delete e4;
+        ASSERT_EQ(e0, *e5);
+        delete e5;*/
+    }
+}
 void test_comparisons()
 {
     typedef expected<int, const char*> Ex;
@@ -304,6 +398,7 @@ int main()
 {
     test_unexpected_type();
     test_expected();
+    test_expected_void();
     test_comparisons();
     test_hash();
 
