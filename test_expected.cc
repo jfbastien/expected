@@ -395,6 +395,18 @@ void test_hash()
     ASSERT_EQ(m[E(make_unexpected(foof))], 0xf00f);
 }
 
+void test_hash_void()
+{
+    typedef expected<void, const char*> E;
+    std::unordered_map<E, int> m;
+    m.insert({ E(), 42 });
+    m.insert({ E(make_unexpected(oops)), 5 });
+    m.insert({ E(make_unexpected(foof)), 0xf00f });
+    ASSERT_EQ(m[E()], 42);
+    ASSERT_EQ(m[E(make_unexpected(oops))], 5);
+    ASSERT_EQ(m[E(make_unexpected(foof))], 0xf00f);
+}
+
 int main()
 {
     test_unexpected_type();
@@ -402,6 +414,7 @@ int main()
     test_expected_void();
     test_comparisons();
     test_hash();
+    test_hash_void();
 
     return errors != 0;
 }
