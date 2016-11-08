@@ -372,10 +372,8 @@ template <class T, class E> constexpr bool operator>(const expected<T, E>& x, co
 template <class T, class E> constexpr bool operator<=(const expected<T, E>& x, const expected<T, E>& y) { return (x == y) || (x < y); }
 template <class T, class E> constexpr bool operator>=(const expected<T, E>& x, const expected<T, E>& y) { return (x == y) || (x > y); }
 
-// Not in the current paper.
-template <class E> constexpr bool operator==(const expected<void, E>& x, const expected<void, E>& y) { return bool(x) == bool(y) && (x ? true : x.error() == y.error()); }
-// Not in the current paper.
-template <class E> constexpr bool operator<(const expected<void, E>& x, const expected<void, E>& y) { return (!bool(x) && bool(y)) ? false : ((bool(x) && !bool(y)) ? true : ((bool(x) && bool(y)) ? false : x.error() < y.error())); }
+template <class E> constexpr bool operator==(const expected<void, E>& x, const expected<void, E>& y) { return bool(x) == bool(y) && (x ? true : x.error() == y.error()); } // Not in the current paper.
+template <class E> constexpr bool operator<(const expected<void, E>& x, const expected<void, E>& y) { return (!bool(x) && bool(y)) ? false : ((bool(x) && !bool(y)) ? true : ((bool(x) && bool(y)) ? false : x.error() < y.error())); } // Not in the current paper.
 
 template <class T, class E> constexpr bool operator==(const expected<T, E>& x, const T& y) { return x == expected<T, E>(y); }
 template <class T, class E> constexpr bool operator==(const T& x, const expected<T, E>& y) { return expected<T, E>(x) == y; }
