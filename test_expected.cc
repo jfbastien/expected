@@ -3,8 +3,8 @@
 #include <string>
 #include <unordered_map>
 
-const char* oops = "oops";
-const char* foof = "foof";
+constexpr const char* oops = "oops";
+constexpr const char* foof = "foof";
 unsigned errors = 0;
 
 #define ASSERT(A, B, CMP) do {                                  \
@@ -56,13 +56,23 @@ void test_unexpected_type()
         auto s = make_unexpected(std::string(oops));
         ASSERT_EQ(s.value(), oops);
     }
+    {
+        constexpr auto s0 = make_unexpected(oops);
+        constexpr auto s1(s0);
+        ASSERT_EQ(s0, s1);
+    }
 }
 
 void test_expected()
 {
     typedef expected<int, const char*> E;
     typedef expected<int, const void*> EV;
-    struct foo { foo(int v) : bar(v) {} int bar; };
+    struct foo {
+      int v;
+      foo(int v) : v(v) { }
+      ~foo() { }
+      bool operator==(const foo& y) const { return v == y.v; }
+    };
     typedef expected<foo, const char*> FooChar;
     typedef expected<foo, std::string> FooString;
     {
@@ -131,8 +141,8 @@ void test_expected()
     }
     {
         auto e = FooChar(42);
-        ASSERT_EQ(e->bar, 42);
-        ASSERT_EQ((*e).bar, 42);
+        ASSERT_EQ(e->v, 42);
+        ASSERT_EQ((*e).v, 42);
     }
     {
         auto e0 = E(42);
@@ -150,16 +160,26 @@ void test_expected()
     }
     {
         FooChar c(foo(42));
-        ASSERT_EQ(c->bar, 42);
-        ASSERT_EQ((*c).bar, 42);
+        ASSERT_EQ(c->v, 42);
+        ASSERT_EQ((*c).v, 42);
     }
-    {/*
+    {
         FooString s(foo(42));
-        ASSERT_EQ(s->bar, 42);
-        ASSERT_EQ((*s).bar, 42);
+        ASSERT_EQ(s->v, 42);
+        ASSERT_EQ((*s).v, 42);
         const char* message = "very long failure string, for very bad failure cases";
-        FooString e(make_unexpected<std::string>(message));
-        ASSERT_EQ(e.error(), std::string(message));*/
+        FooString e0(make_unexpected<std::string>(message));
+        FooString e1(make_unexpected<std::string>(message));
+        FooString e2(make_unexpected<std::string>(std::string()));
+        ASSERT_EQ(e0.error(), std::string(message));
+        ASSERT_EQ(e0, e1);
+        ASSERT_NE(e0, e2);
+        FooString* e4 = new FooString(make_unexpected<std::string>(message));
+        FooString* e5 = new FooString(*e4);
+        ASSERT_EQ(e0, *e4);
+        delete e4;
+        ASSERT_EQ(e0, *e5);
+        delete e5;
     }
 }
 
